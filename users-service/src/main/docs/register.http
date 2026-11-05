@@ -1,0 +1,50 @@
+### Register - success
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Hana Abdelbari",
+  "email": "hana@example.com",
+  "phone": "+201001234567",
+  "password": "Passw0rd123"
+}
+
+### Register - duplicate email (expect 409)
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Someone Else",
+  "email": "HANA@example.com",
+  "password": "Passw0rd123"
+}
+
+### Register - invalid data (expect 400)
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "",
+  "email": "not-an-email",
+  "password": "123"
+}
+
+### Try to register as admin (role must be ignored)
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Sneaky",
+  "email": "sneaky@example.com",
+  "password": "Passw0rd123",
+  "role": "SuperAdmin"
+}
+
+### Malformed JSON (expect 400, not 500)
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{ "fullName": "Broken
+
+### Wrong method (expect 405, not 500)
+GET http://localhost:5001/auth/register
