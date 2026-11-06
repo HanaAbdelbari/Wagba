@@ -1,6 +1,8 @@
 package com.wagba.users.auth;
 
+import com.wagba.users.auth.dto.LoginRequest;
 import com.wagba.users.auth.dto.RegisterRequest;
+import com.wagba.users.auth.dto.TokenResponse;
 import com.wagba.users.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,5 +20,10 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {
         return authService.register(request);
+    }
+
+    @PostMapping("/login")
+    public TokenResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 }
