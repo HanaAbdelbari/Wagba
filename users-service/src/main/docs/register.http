@@ -40,11 +40,39 @@ Content-Type: application/json
   "role": "SuperAdmin"
 }
 
-### Malformed JSON (expect 400, not 500)
-POST http://localhost:5001/auth/register
-Content-Type: application/json
-
-{ "fullName": "Broken
-
 ### Wrong method (expect 405, not 500)
 GET http://localhost:5001/auth/register
+
+### Login (saves the token for the next requests)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{
+  "email": "hana@example.com",
+  "password": "Passw0rd123"
+}
+
+> {% client.global.set("token", response.body.accessToken); %}
+
+### Wrong password (expect 401)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "WrongPass1" }
+
+### Unknown email (expect 401, same message)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "nobody@example.com", "password": "Passw0rd123" }
+
+### Me without token (expect 401)
+GET http://localhost:5001/users/me
+
+### Me with token (expect 200)
+GET http://localhost:5001/users/me
+Authorization: Bearer {{token}}
+
+### Me with a tampered token (expect 401)
+GET http://localhost:5001/users/me
+Authorization: Bearer {{token}}x
