@@ -1,11 +1,13 @@
 package com.wagba.users.auth;
 
 import com.wagba.users.auth.dto.LoginRequest;
+import com.wagba.users.auth.dto.RefreshTokenRequest;
 import com.wagba.users.auth.dto.RegisterRequest;
 import com.wagba.users.auth.dto.TokenResponse;
 import com.wagba.users.common.AccountSuspendedException;
 import com.wagba.users.common.EmailAlreadyExistsException;
 import com.wagba.users.common.InvalidCredentialsException;
+import com.wagba.users.common.InvalidRefreshTokenException;
 import com.wagba.users.security.JwtService;
 import com.wagba.users.user.Role;
 import com.wagba.users.user.User;
@@ -84,5 +86,29 @@ public class AuthService {
 
         return new TokenResponse(access.value(), "Bearer", access.expiresInSeconds(),
                 refresh, UserResponse.from(user));
+    }
+
+    public TokenResponse refresh(RefreshTokenRequest request) {
+        RefreshTokenService.Rotation rotation = refreshTokenService.rotate(request.refreshToken());
+
+        User user = userRepository.findById(rotation.userId())
+                .orElseThrow(InvalidRefreshTokenException::new);
+
+        if (user.getStatus() == UserStatus.Suspended) {
+            refreshTokenService.revokeAllForUser(user.getId());
+            throw new AccountSuspendedException();
+        }
+
+        JwtService.AccessToken access = jwtService.issueAccessToken(user);
+        return new TokenResponse(access.value(), "Bearer", access.expiresInSeconds(),
+                rotation.newRawToken(), UserResponse.from(user));
+    }
+
+    public void logout(RefreshTokenRequest request) {
+        refreshTokenService.revokeSession(request.refreshToken());
+    }
+
+    public void logoutAll(UUID userId) {
+        refreshTokenService.revokeAllForUser(userId);
     }
 }
