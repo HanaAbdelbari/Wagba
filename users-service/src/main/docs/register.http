@@ -76,3 +76,63 @@ Authorization: Bearer {{token}}
 ### Me with a tampered token (expect 401)
 GET http://localhost:5001/users/me
 Authorization: Bearer {{token}}x
+
+### 1) Login (save refresh token as "r1")
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "Passw0rd123" }
+
+> {% client.global.set("token", response.body.accessToken);
+    client.global.set("r1", response.body.refreshToken); %}
+
+### 2) Refresh with r1 (expect 200, save the new one as "r2")
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{r1}}" }
+
+> {% client.global.set("r2", response.body.refreshToken); %}
+
+### 3) Reuse the OLD r1 (expect 401, and the whole session gets revoked)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{r1}}" }
+
+### 4) Now even r2 must be dead (expect 401)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{r2}}" }
+
+### 5) Garbage token (expect 401)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "abc" }
+
+### 6) Missing field (expect 400 bad request)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{}
+
+### 7) Logout (expect 204)
+POST http://localhost:5001/auth/logout
+Content-Type: application/json
+
+{ "refreshToken": "{{r1}}" }
+
+### 8) Refresh after logout (expect 401)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{r1}}" }
+
+### 9) Logout all without token (expect 401)
+POST http://localhost:5001/auth/logout-all
+
+### 10) Logout all with token (expect 204)
+POST http://localhost:5001/auth/logout-all
+Authorization: Bearer {{token}}
