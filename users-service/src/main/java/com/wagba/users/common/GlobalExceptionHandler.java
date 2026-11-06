@@ -71,4 +71,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setTitle("Internal server error");
         return pd;
     }
+
+    @ExceptionHandler(AccountSuspendedException.class)
+    public ProblemDetail handleSuspended(AccountSuspendedException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        pd.setTitle("Account suspended");
+        return pd;
+    }
 }
