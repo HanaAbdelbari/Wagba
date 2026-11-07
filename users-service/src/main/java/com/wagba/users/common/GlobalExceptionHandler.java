@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -90,6 +90,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ProblemDetail handleInvalidPasswordChange(InvalidPasswordChangeException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         pd.setTitle("Password change rejected");
+        return pd;
+    }
+
+    @ExceptionHandler(AdminOperationNotAllowedException.class)
+    public ProblemDetail handleAdminNotAllowed(AdminOperationNotAllowedException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setTitle("Operation not allowed");
+        return pd;
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "The resource was modified by someone else, please retry");
+        pd.setTitle("Concurrent modification");
         return pd;
     }
 }
