@@ -42,6 +42,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/logout-all").authenticated()
+                        .requestMatchers("/admin/**").hasRole("SuperAdmin")
                         .requestMatchers(
                                 "/auth/**",
                                 "/actuator/health/**",
