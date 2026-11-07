@@ -225,3 +225,118 @@ POST http://localhost:5001/auth/login
 Content-Type: application/json
 
 { "email": "hana@example.com", "password": "NewPassw0rd456" }
+
+### Admin login
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "admin@wagba.com", "password": "ADMIN_PASSWORD_HERE" }
+
+> {% client.global.set("adminToken", response.body.accessToken);
+    client.global.set("adminId", response.body.user.id); %}
+
+### Customer login (hana)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "NewPassw0rd456" }
+
+> {% client.global.set("token", response.body.accessToken);
+    client.global.set("r1", response.body.refreshToken); %}
+
+### 1) Customer token on admin API (expect 403)
+GET http://localhost:5001/admin/users
+Authorization: Bearer {{token}}
+
+### 2) No token (expect 401)
+GET http://localhost:5001/admin/users
+
+### 3) List users (expect 200, paged)
+GET http://localhost:5001/admin/users
+Authorization: Bearer {{adminToken}}
+
+### 4) Search + filter, and remember the user id
+GET http://localhost:5001/admin/users?search=hana&role=Customer&status=Active&size=5
+Authorization: Bearer {{adminToken}}
+
+> {% client.global.set("userId", response.body.content[0].id); %}
+
+### 5) Invalid role value (expect 400)
+GET http://localhost:5001/admin/users?role=Wizard
+Authorization: Bearer {{adminToken}}
+
+### 6) Get one user (expect 200)
+GET http://localhost:5001/admin/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+
+### 7) Unknown id (expect 404)
+GET http://localhost:5001/admin/users/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{adminToken}}
+
+### 8) Suspend without a reason (expect 400)
+PATCH http://localhost:5001/admin/users/{{userId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "Suspended" }
+
+### 9) Suspend (expect 200, status Suspended)
+PATCH http://localhost:5001/admin/users/{{userId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "Suspended", "reason": "Abuse report #42" }
+
+### 10) Suspended user cannot login (expect 403)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "NewPassw0rd456" }
+
+### 11) Her old refresh token is dead (expect 401)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{r1}}" }
+
+### 12) Reactivate (expect 200, status Active)
+PATCH http://localhost:5001/admin/users/{{userId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "Active", "reason": "Reviewed, false alarm" }
+
+### 13) Change role (expect 200, role RestaurantUser)
+PUT http://localhost:5001/admin/users/{{userId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "RestaurantUser", "reason": "Owns a restaurant" }
+
+### 14) Put her back to Customer
+PUT http://localhost:5001/admin/users/{{userId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "Customer", "reason": "Test cleanup" }
+
+### 15) Admin suspends himself (expect 409)
+PATCH http://localhost:5001/admin/users/{{adminId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "Suspended", "reason": "oops" }
+
+### 16) Admin demotes himself (expect 409)
+PUT http://localhost:5001/admin/users/{{adminId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "Customer", "reason": "oops" }
+
+### 17) Invalid enum in body (expect 400)
+PUT http://localhost:5001/admin/users/{{userId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "God", "reason": "x" }
