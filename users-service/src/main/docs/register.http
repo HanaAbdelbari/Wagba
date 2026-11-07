@@ -136,3 +136,92 @@ POST http://localhost:5001/auth/logout-all
 ### 10) Logout all with token (expect 204)
 POST http://localhost:5001/auth/logout-all
 Authorization: Bearer {{token}}
+
+### 1) Login
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "Passw0rd123" }
+
+> {% client.global.set("token", response.body.accessToken);
+    client.global.set("r1", response.body.refreshToken); %}
+
+### 2) Update name and phone (expect 200 with the new values)
+PATCH http://localhost:5001/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "fullName": "Hana A. Abdelbari", "phone": "+201112223334" }
+
+### 3) Update only the phone (name must stay as is)
+PATCH http://localhost:5001/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "phone": "+201000000000" }
+
+### 4) Blank name (expect 400)
+PATCH http://localhost:5001/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "fullName": "   " }
+
+### 5) Try to change role/email through PATCH (must be ignored, role stays Customer)
+PATCH http://localhost:5001/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "role": "SuperAdmin", "email": "evil@example.com", "status": "Active" }
+
+### 6) PATCH without token (expect 401)
+PATCH http://localhost:5001/users/me
+Content-Type: application/json
+
+{ "fullName": "x" }
+
+### 7) Wrong current password (expect 400)
+POST http://localhost:5001/users/me/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "currentPassword": "WrongPass1", "newPassword": "NewPassw0rd456" }
+
+### 8) Same password as the current one (expect 400)
+POST http://localhost:5001/users/me/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "currentPassword": "Passw0rd123", "newPassword": "Passw0rd123" }
+
+### 9) Weak new password (expect 400 with errors)
+POST http://localhost:5001/users/me/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "currentPassword": "Passw0rd123", "newPassword": "short" }
+
+### 10) Change password (expect 204)
+POST http://localhost:5001/users/me/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "currentPassword": "Passw0rd123", "newPassword": "NewPassw0rd456" }
+
+### 11) Old refresh token must be dead (expect 401)
+POST http://localhost:5001/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{r1}}" }
+
+### 12) Login with the OLD password (expect 401)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "Passw0rd123" }
+
+### 13) Login with the NEW password (expect 200)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "NewPassw0rd456" }
