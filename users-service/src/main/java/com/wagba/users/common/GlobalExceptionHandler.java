@@ -85,4 +85,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setTitle("Invalid refresh token");
         return pd;
     }
+
+    @ExceptionHandler(InvalidPasswordChangeException.class)
+    public ProblemDetail handleInvalidPasswordChange(InvalidPasswordChangeException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setTitle("Password change rejected");
+        return pd;
+    }
 }
