@@ -37,6 +37,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final AuditService auditService;
     private final OutboxService outboxService;
+    private final AccountRecoveryService recoveryService;
 
     private String dummyHash;
 
@@ -73,6 +74,7 @@ public class AuthService {
                 Map.of("role", "Customer", "source", "self-registration"), null);
         outboxService.publish("User", user.getId(), UserEventPayloads.version(user),
                 "UserRegistered", UserEventPayloads.registered(user));
+        recoveryService.issueEmailVerification(user);
 
         return UserResponse.from(user);
     }
