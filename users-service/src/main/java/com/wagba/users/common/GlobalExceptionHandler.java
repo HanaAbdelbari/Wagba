@@ -107,4 +107,25 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setTitle("Concurrent modification");
         return pd;
     }
+
+    @ExceptionHandler(InvalidVerificationCodeException.class)
+    public ProblemDetail handleInvalidCode(InvalidVerificationCodeException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setTitle("Verification failed");
+        return pd;
+    }
+
+    @ExceptionHandler(EmailAlreadyVerifiedException.class)
+    public ProblemDetail handleAlreadyVerified(EmailAlreadyVerifiedException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setTitle("Already verified");
+        return pd;
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ProblemDetail handleTooMany(TooManyRequestsException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+        pd.setTitle("Too many requests");
+        return pd;
+    }
 }
