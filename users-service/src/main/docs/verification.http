@@ -1,0 +1,101 @@
+### 1) Register a fresh user (also creates an EmailVerificationRequested event)
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{ "fullName": "Verify Me", "email": "verify1@example.com", "password": "Passw0rd123" }
+
+### 2) Login
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "password": "Passw0rd123" }
+
+> {% client.global.set("vtoken", response.body.accessToken); %}
+
+### 3) emailVerified must be false
+GET http://localhost:5001/users/me
+Authorization: Bearer {{vtoken}}
+
+### 4) Request a new code right away (expect 429 - cooldown)
+POST http://localhost:5001/auth/verify-email/request
+Authorization: Bearer {{vtoken}}
+
+### 5) Without token (expect 401)
+POST http://localhost:5001/auth/verify-email/request
+
+### 6) Wrong code (expect 400)
+POST http://localhost:5001/auth/verify-email/confirm
+Authorization: Bearer {{vtoken}}
+Content-Type: application/json
+
+{ "code": "000000" }
+
+### 7) Bad format (expect 400 with errors)
+POST http://localhost:5001/auth/verify-email/confirm
+Authorization: Bearer {{vtoken}}
+Content-Type: application/json
+
+{ "code": "12ab" }
+
+### 8) Correct code from the SQL query (expect 204)
+POST http://localhost:5001/auth/verify-email/confirm
+Authorization: Bearer {{vtoken}}
+Content-Type: application/json
+
+{ "code": "PASTE_CODE_HERE" }
+
+### 9) emailVerified must be true now
+GET http://localhost:5001/users/me
+Authorization: Bearer {{vtoken}}
+
+### 10) Request again (expect 409 - already verified)
+POST http://localhost:5001/auth/verify-email/request
+Authorization: Bearer {{vtoken}}
+
+### 11) Forgot password - existing email (expect 202)
+POST http://localhost:5001/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "verify1@example.com" }
+
+### 12) Forgot password - unknown email (expect 202 with the SAME body)
+POST http://localhost:5001/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "nobody@example.com" }
+
+### 13) Reset with a wrong code (expect 400)
+POST http://localhost:5001/auth/reset-password
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "code": "000000", "newPassword": "BrandNewPass789" }
+
+### 14) Weak new password (expect 400 with errors)
+POST http://localhost:5001/auth/reset-password
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "code": "123456", "newPassword": "short" }
+
+### 15) Reset with the correct code from the SQL query (expect 204)
+POST http://localhost:5001/auth/reset-password
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "code": "PASTE_CODE_HERE", "newPassword": "BrandNewPass789" }
+
+### 16) Reuse the same code (expect 400)
+POST http://localhost:5001/auth/reset-password
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "code": "PASTE_CODE_HERE", "newPassword": "AnotherPass123" }
+
+### 17) Login with the new password (expect 200)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "password": "BrandNewPass789" }
+
+### 18) Login with the old password (expect 401)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "verify1@example.com", "password": "Passw0rd123" }
