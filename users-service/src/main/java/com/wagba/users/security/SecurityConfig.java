@@ -41,7 +41,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/logout-all").authenticated()
+                        .requestMatchers("/auth/logout-all", "/auth/verify-email/**").authenticated()
                         .requestMatchers("/admin/**").hasRole("SuperAdmin")
                         .requestMatchers(
                                 "/auth/**",
