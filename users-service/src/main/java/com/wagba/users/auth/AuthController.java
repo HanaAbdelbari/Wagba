@@ -3,6 +3,9 @@ package com.wagba.users.auth;
 import com.wagba.users.auth.dto.*;
 import com.wagba.users.common.MessageResponse;
 import com.wagba.users.user.dto.UserResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,6 +18,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Tag(name = "Authentication")
+@SecurityRequirements   // empty: the endpoints in this controller are public by default
 public class AuthController {
 
     private final AuthService authService;
@@ -41,6 +46,7 @@ public class AuthController {
         authService.logout(request);
     }
 
+    @SecurityRequirement(name = "bearer-jwt")
     @PostMapping("/logout-all")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logoutAll(@AuthenticationPrincipal Jwt jwt) {
@@ -64,6 +70,7 @@ public class AuthController {
 
     @PostMapping("/verify-email/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @SecurityRequirement(name = "bearer-jwt")
     public MessageResponse requestEmailVerification(@AuthenticationPrincipal Jwt jwt) {
         recoveryService.requestEmailVerification(UUID.fromString(jwt.getSubject()));
         return new MessageResponse("Verification code sent");
@@ -71,6 +78,7 @@ public class AuthController {
 
     @PostMapping("/verify-email/confirm")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @SecurityRequirement(name = "bearer-jwt")
     public void confirmEmail(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody VerifyEmailRequest request) {
         recoveryService.verifyEmail(UUID.fromString(jwt.getSubject()), request.code());
     }
