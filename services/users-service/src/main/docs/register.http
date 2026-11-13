@@ -340,3 +340,9 @@ Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "role": "God", "reason": "x" }
+
+### 1) register new email
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{ "fullName": "Outbox Test", "email": "outbox3@example.com", "password": "Passw0rd123" }
