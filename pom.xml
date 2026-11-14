@@ -18,6 +18,7 @@
 
     <modules>
         <module>services/users-service</module>
+        <module>services/restaurant-portal-service</module>
     </modules>
 
     <properties>
