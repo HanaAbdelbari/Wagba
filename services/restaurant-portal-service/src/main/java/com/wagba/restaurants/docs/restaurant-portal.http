@@ -1,0 +1,28 @@
+### 1) Login on users-service (port 5001). Use any existing account.
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "hana@example.com", "password": "YOUR_PASSWORD" }
+
+> {% client.global.set("token", response.body.accessToken); %}
+
+### 2) Health of the new service (public, expect 200 "UP" or "DOWN" if RabbitMQ is off)
+GET http://localhost:5002/actuator/health
+
+### 3) Token from users-service is accepted here (expect 200 with userId and role)
+GET http://localhost:5002/whoami
+Authorization: Bearer {{token}}
+
+### 4) No token (expect 401, application/problem+json)
+GET http://localhost:5002/whoami
+
+### 5) Tampered token (expect 401)
+GET http://localhost:5002/whoami
+Authorization: Bearer {{token}}x
+
+### 6) Admin area with a customer token (expect 403)
+GET http://localhost:5002/admin/restaurants
+Authorization: Bearer {{token}}
+
+### 7) Public area needs no token (expect 404 for now: the endpoint doesn't exist yet, but NOT 401)
+GET http://localhost:5002/restaurants
