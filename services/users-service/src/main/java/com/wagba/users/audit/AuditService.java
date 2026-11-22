@@ -1,7 +1,9 @@
 package com.wagba.users.audit;
 
+import com.wagba.users.common.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,11 @@ public class AuditService {
         entry.setAction(action);
         entry.setChanges(changes);
         entry.setReason(reason);
+        // new: the id of the current HTTP request, same one the outbox event gets
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId != null) {
+            entry.setCorrelationId(UUID.fromString(correlationId));
+        }
 
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
             HttpServletRequest req = attrs.getRequest();
