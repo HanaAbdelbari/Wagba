@@ -36,8 +36,13 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                        // order matters: "mine" must be matched before the public "/restaurants/*" rule
-                        .requestMatchers(HttpMethod.GET, "/restaurants/mine").authenticated()
+                        // owner endpoints: RestaurantUser only. Ownership of the specific restaurant is checked in the service.
+                        .requestMatchers(HttpMethod.POST, "/restaurants").hasRole("RestaurantUser")
+                        .requestMatchers(HttpMethod.GET, "/restaurants/mine").hasRole("RestaurantUser")
+                        .requestMatchers(HttpMethod.PATCH, "/restaurants/*").hasRole("RestaurantUser")
+                        .requestMatchers(HttpMethod.PUT, "/restaurants/*/working-hours", "/restaurants/*/availability")
+                        .hasRole("RestaurantUser")
+                        // public browsing (KAN-20)
                         .requestMatchers(HttpMethod.GET, "/restaurants", "/restaurants/*", "/restaurants/*/menu").permitAll()
                         .requestMatchers("/admin/**").hasRole("SuperAdmin")
                         .anyRequest().authenticated()
