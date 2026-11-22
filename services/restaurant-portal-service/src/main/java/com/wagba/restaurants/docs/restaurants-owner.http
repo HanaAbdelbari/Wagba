@@ -1,0 +1,296 @@
+### ===== SETUP =====
+### Admin login (users-service)
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "admin@wagba.com", "password": "ADMIN_PASSWORD_HERE" }
+
+> {% client.global.set("adminToken", response.body.accessToken); %}
+
+### Register three accounts (409 is fine if they already exist)
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{ "fullName": "Owner One", "email": "owner1@wagba.test", "password": "Passw0rd123" }
+
+###
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{ "fullName": "Owner Two", "email": "owner2@wagba.test", "password": "Passw0rd123" }
+
+###
+POST http://localhost:5001/auth/register
+Content-Type: application/json
+
+{ "fullName": "Plain Customer", "email": "customer1@wagba.test", "password": "Passw0rd123" }
+
+### Login to learn the ids
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner1Id", response.body.user.id); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner2@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner2Id", response.body.user.id); %}
+
+### Promote both owners to RestaurantUser (admin API of users-service)
+PUT http://localhost:5001/admin/users/{{owner1Id}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "RestaurantUser", "reason": "Restaurant owner" }
+
+###
+PUT http://localhost:5001/admin/users/{{owner2Id}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "RestaurantUser", "reason": "Restaurant owner" }
+
+### Log in AGAIN: the role lives inside the token, so the old one is useless
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner1", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner2@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner2", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "customer1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("customer", response.body.accessToken); %}
+
+
+### ===== ACCESS RULES =====
+### 1) Customer cannot create a restaurant (expect 403)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{customer}}
+Content-Type: application/json
+
+{ "name": "Nope", "phone": "+201000000000", "address": "Cairo" }
+
+### 2) No token (expect 401)
+POST http://localhost:5002/restaurants
+Content-Type: application/json
+
+{ "name": "Nope", "phone": "+201000000000", "address": "Cairo" }
+
+
+### ===== CREATE =====
+### 3) Create (expect 201, status Pending, currency EGP, publiclyVisible false)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{
+  "name": "Pizza House",
+  "description": "Wood-fired pizza",
+  "phone": "+201001112233",
+  "address": "12 Tahrir Square, Cairo",
+  "latitude": 30.044420,
+  "longitude": 31.235712
+}
+
+> {% client.global.set("rid", response.body.id); %}
+
+### 4) Invalid data (expect 400 with errors for name, phone, latitude)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "", "phone": "abc", "address": "x", "latitude": 99, "longitude": 31 }
+
+### 5) Latitude without longitude (expect 400)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Half Location", "phone": "+201001112233", "address": "x", "latitude": 30.0 }
+
+### 6) Unknown timezone (expect 400)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Bad Zone", "phone": "+201001112233", "address": "x", "timezone": "Asia/Nowhere" }
+
+### 7) Unknown currency (expect 400)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Bad Money", "phone": "+201001112233", "address": "x", "currency": "ZZZ" }
+
+### 8) Sending status/owner in the body must be ignored (expect 201, status Pending)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Sneaky", "phone": "+201001112233", "address": "x",
+  "status": "Approved", "ownerUserId": "00000000-0000-0000-0000-000000000000", "acceptingOrders": false }
+
+
+### ===== READ =====
+### 9) My restaurants (expect the two created above)
+GET http://localhost:5002/restaurants/mine
+Authorization: Bearer {{owner1}}
+
+### 10) Owner two sees none of them (expect an empty list)
+GET http://localhost:5002/restaurants/mine
+Authorization: Bearer {{owner2}}
+
+
+### ===== UPDATE =====
+### 11) Owner two cannot touch owner one's restaurant (expect 404, not 403)
+PATCH http://localhost:5002/restaurants/{{rid}}
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Hijacked" }
+
+### 12) Update name and phone (expect 200)
+PATCH http://localhost:5002/restaurants/{{rid}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Pizza House Downtown", "phone": "+201009998877" }
+
+### 13) Same values again (expect 200 and NO new audit row or event)
+PATCH http://localhost:5002/restaurants/{{rid}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Pizza House Downtown" }
+
+### 14) Blank name (expect 400)
+PATCH http://localhost:5002/restaurants/{{rid}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "   " }
+
+### 15) Currency, status and ownership cannot be changed (expect 200, nothing else changes)
+PATCH http://localhost:5002/restaurants/{{rid}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "currency": "USD", "status": "Approved", "ownerUserId": "00000000-0000-0000-0000-000000000000" }
+
+
+### ===== WORKING HOURS =====
+### 16) Set a schedule, including an overnight period (expect 200, Friday closesNextDay true)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{
+  "hours": [
+    { "dayOfWeek": 1, "opensAt": "10:00", "closesAt": "23:00" },
+    { "dayOfWeek": 2, "opensAt": "10:00", "closesAt": "14:00" },
+    { "dayOfWeek": 2, "opensAt": "14:00", "closesAt": "23:00" },
+    { "dayOfWeek": 5, "opensAt": "18:00", "closesAt": "02:00" }
+  ]
+}
+
+### 17) Overlap on the same day (expect 400)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{
+  "hours": [
+    { "dayOfWeek": 1, "opensAt": "10:00", "closesAt": "15:00" },
+    { "dayOfWeek": 1, "opensAt": "14:00", "closesAt": "20:00" }
+  ]
+}
+
+### 18) Friday night runs into Saturday morning (expect 400)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{
+  "hours": [
+    { "dayOfWeek": 5, "opensAt": "18:00", "closesAt": "02:00" },
+    { "dayOfWeek": 6, "opensAt": "01:00", "closesAt": "05:00" }
+  ]
+}
+
+### 19) Sunday night runs into Monday morning (expect 400, the week wraps around)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{
+  "hours": [
+    { "dayOfWeek": 7, "opensAt": "22:00", "closesAt": "03:00" },
+    { "dayOfWeek": 1, "opensAt": "02:00", "closesAt": "08:00" }
+  ]
+}
+
+### 20) Day out of range (expect 400)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "hours": [ { "dayOfWeek": 8, "opensAt": "10:00", "closesAt": "12:00" } ] }
+
+### 21) Bad time format (expect 400, not 500)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "hours": [ { "dayOfWeek": 1, "opensAt": "25:99", "closesAt": "12:00" } ] }
+
+### 22) Another owner cannot set my hours (expect 404)
+PUT http://localhost:5002/restaurants/{{rid}}/working-hours
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "hours": [] }
+
+### 23) The schedule from request 16 must still be intact
+GET http://localhost:5002/restaurants/mine
+Authorization: Bearer {{owner1}}
+
+
+### ===== AVAILABILITY =====
+### 24) Stop accepting orders (expect 200, acceptingOrders false)
+PUT http://localhost:5002/restaurants/{{rid}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "acceptingOrders": false }
+
+### 25) Same value again (expect 200 and NO new event)
+PUT http://localhost:5002/restaurants/{{rid}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "acceptingOrders": false }
+
+### 26) Missing field (expect 400)
+PUT http://localhost:5002/restaurants/{{rid}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{}
