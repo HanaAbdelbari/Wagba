@@ -5,12 +5,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
 public interface WorkingHoursRepository extends JpaRepository<WorkingHours, UUID> {
 
     List<WorkingHours> findByRestaurantIdOrderByDayOfWeekAscOpensAtAsc(UUID restaurantId);
+    List<WorkingHours> findByRestaurantIdInOrderByDayOfWeekAscOpensAtAsc(Collection<UUID> restaurantIds);
 
     /** Used by PUT /working-hours: the whole schedule is replaced at once. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
