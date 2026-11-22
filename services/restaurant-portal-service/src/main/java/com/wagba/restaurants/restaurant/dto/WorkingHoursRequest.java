@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalTime;
 import java.util.List;
 
-/** The whole weekly schedule. An empty list means the restaurant has no opening hours (closed). */
+/** The whole weekly schedule. An empty list means the restaurant has no opening hours (restaurant closed). */
 public record WorkingHoursRequest(
 
         @NotNull(message = "hours is required")
