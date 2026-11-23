@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 /** Open to everyone. A valid token only widens what the caller may see (own and, for admins, all restaurants). */
+//Public Endpoint مش معناها إننا ممنوع نستقبل Token.
+//معناها إن الدخول مش مشروط بوجود Token. ولو المستخدم اختار يبعت Token، نقدر نستفيد من هويته عشان نحدد البيانات اللي يقدر يشوفها.
 @RestController
 @RequestMapping("/restaurants")
 @RequiredArgsConstructor
