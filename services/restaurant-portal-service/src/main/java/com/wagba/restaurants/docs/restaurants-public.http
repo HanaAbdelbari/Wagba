@@ -1,0 +1,224 @@
+### ===== SETUP =====
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner1", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner2@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner2", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "customer1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("customer", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "admin@wagba.com", "password": "ADMIN_PASSWORD_HERE" }
+
+> {% client.global.set("adminToken", response.body.accessToken); %}
+
+### Burger Town belongs to owner1 (it will be approved)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Burger Town", "description": "Smash burgers and fries", "phone": "+201005550001", "address": "5 Nile Street, Cairo" }
+
+> {% client.global.set("bid", response.body.id); %}
+
+### Sushi Corner belongs to owner2 (it stays Pending)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Sushi Corner", "description": "Fresh sushi", "phone": "+201005550002", "address": "9 Garden City, Cairo" }
+
+> {% client.global.set("sid", response.body.id); %}
+
+
+### ===== BEFORE APPROVAL =====
+### 1) Anonymous list: neither restaurant is there yet (both are Pending)
+GET http://localhost:5002/restaurants?search=burger
+
+### 2) Pending restaurant, anonymous (expect 404)
+GET http://localhost:5002/restaurants/{{bid}}
+
+
+# >>> Now run section A of docs/kan20-test-data.sql (approves Burger Town) <<<
+
+
+### ===== LIST =====
+### 3) Burger Town appears. No ownerUserId and no reviewNote in the response
+GET http://localhost:5002/restaurants?search=burger
+
+### 4) The search ignores letter case (expect the same result)
+GET http://localhost:5002/restaurants?search=BURGER
+
+### 5) It also searches the description
+GET http://localhost:5002/restaurants?search=smash
+
+### 6) Nothing matches (expect an empty content list, totalElements 0)
+GET http://localhost:5002/restaurants?search=zzzzzz
+
+### 7) A percent sign is a normal character, not a wildcard (expect an empty list)
+GET http://localhost:5002/restaurants?search=%25
+
+### 8) The unapproved restaurant never shows up (expect an empty list)
+GET http://localhost:5002/restaurants?search=sushi
+
+### 9) Pagination
+GET http://localhost:5002/restaurants?size=1&page=0
+
+### 10) A page beyond the end (expect an empty content list, totals still correct)
+GET http://localhost:5002/restaurants?size=1&page=50
+
+### 11) Size is capped (expect "size": 50) and a negative page becomes 0
+GET http://localhost:5002/restaurants?size=1000&page=-3
+
+
+### ===== DETAILS AND VISIBILITY =====
+### 12) Approved, anonymous (expect 200)
+GET http://localhost:5002/restaurants/{{bid}}
+
+### 13) Approved, with a customer token (expect 200)
+GET http://localhost:5002/restaurants/{{bid}}
+Authorization: Bearer {{customer}}
+
+### 14) Pending, anonymous (expect 404)
+GET http://localhost:5002/restaurants/{{sid}}
+
+### 15) Pending, a customer (expect 404)
+GET http://localhost:5002/restaurants/{{sid}}
+Authorization: Bearer {{customer}}
+
+### 16) Pending, another owner (expect 404)
+GET http://localhost:5002/restaurants/{{sid}}
+Authorization: Bearer {{owner1}}
+
+### 17) Pending, its own owner (expect 200, status Pending)
+GET http://localhost:5002/restaurants/{{sid}}
+Authorization: Bearer {{owner2}}
+
+### 18) Pending, SuperAdmin (expect 200)
+GET http://localhost:5002/restaurants/{{sid}}
+Authorization: Bearer {{adminToken}}
+
+### 19) Unknown id (expect 404)
+GET http://localhost:5002/restaurants/00000000-0000-0000-0000-000000000000
+
+### 20) Not a UUID (expect 400, not 500)
+GET http://localhost:5002/restaurants/abc
+
+### 21) A broken token on a public endpoint is rejected (expect 401)
+GET http://localhost:5002/restaurants/{{bid}}
+Authorization: Bearer not-a-real-token
+
+
+### ===== OPEN NOW AND ORDERABLE =====
+### 22) No working hours set: openNow false, orderable false
+GET http://localhost:5002/restaurants/{{bid}}
+
+### 23) Open all day, every day (00:00 to 00:00 means 24 hours)
+PUT http://localhost:5002/restaurants/{{bid}}/working-hours
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{
+  "hours": [
+    { "dayOfWeek": 1, "opensAt": "00:00", "closesAt": "00:00" },
+    { "dayOfWeek": 2, "opensAt": "00:00", "closesAt": "00:00" },
+    { "dayOfWeek": 3, "opensAt": "00:00", "closesAt": "00:00" },
+    { "dayOfWeek": 4, "opensAt": "00:00", "closesAt": "00:00" },
+    { "dayOfWeek": 5, "opensAt": "00:00", "closesAt": "00:00" },
+    { "dayOfWeek": 6, "opensAt": "00:00", "closesAt": "00:00" },
+    { "dayOfWeek": 7, "opensAt": "00:00", "closesAt": "00:00" }
+  ]
+}
+
+### 24) Now openNow true and orderable true
+GET http://localhost:5002/restaurants/{{bid}}
+
+### 25) The owner stops accepting orders
+PUT http://localhost:5002/restaurants/{{bid}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "acceptingOrders": false }
+
+### 26) openNow true but orderable false
+GET http://localhost:5002/restaurants/{{bid}}
+
+### 27) Back to normal
+PUT http://localhost:5002/restaurants/{{bid}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "acceptingOrders": true }
+
+
+### ===== MENU (run section B of docs/kan20-test-data.sql first) =====
+### 28) Public menu (expect: Pizza with Margherita and Pepperoni, Drinks with Cola.
+###     NOT: the archived item, the item in the archived category, the empty Desserts category)
+GET http://localhost:5002/restaurants/{{bid}}/menu
+
+### 29) Pepperoni shows "available": false. Margherita has a required Size group
+###     with Small and Large only (the archived option Huge is hidden)
+
+### 30) The owner also sees the empty Desserts category
+GET http://localhost:5002/restaurants/{{bid}}/menu
+Authorization: Bearer {{owner1}}
+
+### 31) Menu of a Pending restaurant, anonymous (expect 404)
+GET http://localhost:5002/restaurants/{{sid}}/menu
+
+### 32) Menu of a Pending restaurant, its owner (expect 200 with an empty categories list)
+GET http://localhost:5002/restaurants/{{sid}}/menu
+Authorization: Bearer {{owner2}}
+
+
+# >>> Now run section C of docs/kan20-test-data.sql (suspends Burger Town) <<<
+
+
+### ===== SUSPENDED =====
+### 33) Suspended: anonymous gets 404 on details, menu and in the list
+GET http://localhost:5002/restaurants/{{bid}}
+
+###
+GET http://localhost:5002/restaurants/{{bid}}/menu
+
+###
+GET http://localhost:5002/restaurants?search=burger
+
+### 34) The owner and the admin still see it (expect 200, status Suspended)
+GET http://localhost:5002/restaurants/{{bid}}
+Authorization: Bearer {{owner1}}
+
+###
+GET http://localhost:5002/restaurants/{{bid}}
+Authorization: Bearer {{adminToken}}
+
+
+# >>> Run section D (restores Burger Town, then hides it by suspending its OWNER) <<<
+
+
+### 35) The owner is suspended, so the approved restaurant is hidden too (expect 404, empty list)
+GET http://localhost:5002/restaurants/{{bid}}
+
+###
+GET http://localhost:5002/restaurants?search=burger
+
+
+# >>> Run section E (restores everything) <<<
