@@ -132,6 +132,7 @@ public class RestaurantQueryService {
     }
 
     /** One query for the whole page instead of one per restaurant. */
+    //to avoid N+1 Query problem
     private Map<UUID, List<WorkingHours>> hoursFor(List<Restaurant> restaurants) {
         if (restaurants.isEmpty()) {
             return Map.of();
