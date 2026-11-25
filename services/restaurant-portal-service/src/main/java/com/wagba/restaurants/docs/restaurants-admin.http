@@ -1,0 +1,278 @@
+### ===== SETUP =====
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "admin@wagba.com", "password": "ADMIN_PASSWORD_HERE" }
+
+> {% client.global.set("adminToken", response.body.accessToken);
+    client.global.set("adminId", response.body.user.id); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner1", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner2@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner2", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "customer1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("customer", response.body.accessToken); %}
+
+### Four fresh restaurants: A and C belong to owner1, B and D to owner2
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Admin Test A", "description": "To be approved", "phone": "+201007770001", "address": "1 Test Street" }
+
+> {% client.global.set("aid", response.body.id); %}
+
+###
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Admin Test B", "description": "To be rejected", "phone": "+201007770002", "address": "2 Test Street" }
+
+> {% client.global.set("bid", response.body.id); %}
+
+###
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Admin Test C", "description": "Approved with a note", "phone": "+201007770003", "address": "3 Test Street" }
+
+> {% client.global.set("cid", response.body.id); %}
+
+###
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Admin Test D", "description": "Approved with no body at all", "phone": "+201007770004", "address": "4 Test Street" }
+
+> {% client.global.set("did", response.body.id); %}
+
+
+### ===== ACCESS RULES =====
+### 1) No token (expect 401)
+GET http://localhost:5002/admin/restaurants
+
+### 2) Customer (expect 403)
+GET http://localhost:5002/admin/restaurants
+Authorization: Bearer {{customer}}
+
+### 3) A restaurant owner is not an admin (expect 403)
+GET http://localhost:5002/admin/restaurants
+Authorization: Bearer {{owner1}}
+
+### 4) An owner cannot approve even their own restaurant (expect 403)
+POST http://localhost:5002/admin/restaurants/{{aid}}/approve
+Authorization: Bearer {{owner1}}
+
+
+### ===== LIST AND DETAILS =====
+### 5) Everything, newest first (expect 200)
+GET http://localhost:5002/admin/restaurants
+Authorization: Bearer {{adminToken}}
+
+### 6) Only the review queue (expect only Pending restaurants)
+GET http://localhost:5002/admin/restaurants?status=Pending
+Authorization: Bearer {{adminToken}}
+
+### 7) Search by name, address or description (expect Admin Test A)
+GET http://localhost:5002/admin/restaurants?search=to%20be%20approved
+Authorization: Bearer {{adminToken}}
+
+### 8) Filter by owner. Take an id from request 5
+GET http://localhost:5002/admin/restaurants?ownerUserId={{owner1Id}}
+Authorization: Bearer {{adminToken}}
+
+### 9) Unknown status value (expect 400, not 500)
+GET http://localhost:5002/admin/restaurants?status=Banana
+Authorization: Bearer {{adminToken}}
+
+### 10) Details show the owner and review trail (expect ownerUserId, reviewedByUserId null)
+GET http://localhost:5002/admin/restaurants/{{aid}}
+Authorization: Bearer {{adminToken}}
+
+### 11) Unknown id (expect 404)
+GET http://localhost:5002/admin/restaurants/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{adminToken}}
+
+### 12) Not a UUID (expect 400)
+GET http://localhost:5002/admin/restaurants/abc
+Authorization: Bearer {{adminToken}}
+
+
+### ===== APPROVE =====
+### 13) Before approval the restaurant is invisible to the public (expect 404)
+GET http://localhost:5002/restaurants/{{aid}}
+
+### 14) Approve A (expect 200, status Approved, reviewedByUserId = admin, reviewedAt set)
+POST http://localhost:5002/admin/restaurants/{{aid}}/approve
+Authorization: Bearer {{adminToken}}
+
+### 15) Now the public can see it (expect 200)
+GET http://localhost:5002/restaurants/{{aid}}
+
+### 16) Approve again (expect 200 and NO new audit row or event)
+POST http://localhost:5002/admin/restaurants/{{aid}}/approve
+Authorization: Bearer {{adminToken}}
+
+### 17) Approve C with a note (expect reviewNote "Welcome aboard")
+POST http://localhost:5002/admin/restaurants/{{cid}}/approve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "note": "Welcome aboard" }
+
+### 18) Approve D with no body and no Content-Type at all (expect 200)
+POST http://localhost:5002/admin/restaurants/{{did}}/approve
+Authorization: Bearer {{adminToken}}
+
+### 19) A note that is too long (expect 400): see the file for a 1001 character string
+POST http://localhost:5002/admin/restaurants/{{cid}}/approve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "note": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+
+
+### ===== REJECT =====
+### 20) Reject without a reason (expect 400, errors.reason)
+POST http://localhost:5002/admin/restaurants/{{bid}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+### 21) Blank reason (expect 400)
+POST http://localhost:5002/admin/restaurants/{{bid}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "   " }
+
+### 22) Reject with a reason (expect 200, status Rejected, reviewNote set)
+POST http://localhost:5002/admin/restaurants/{{bid}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Missing commercial license" }
+
+### 23) The owner sees the reason in their own list (expect status Rejected and the reviewNote)
+GET http://localhost:5002/restaurants/mine
+Authorization: Bearer {{owner2}}
+
+### 24) Reject again (expect 200, no change)
+POST http://localhost:5002/admin/restaurants/{{bid}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Missing commercial license" }
+
+### 25) A rejected restaurant cannot be approved (expect 409 "Cannot approve a restaurant that is Rejected")
+POST http://localhost:5002/admin/restaurants/{{bid}}/approve
+Authorization: Bearer {{adminToken}}
+
+### 26) An approved restaurant cannot be rejected (expect 409)
+POST http://localhost:5002/admin/restaurants/{{aid}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Changed my mind" }
+
+
+### ===== SUSPEND AND REACTIVATE =====
+### 27) Suspend without a reason (expect 400)
+POST http://localhost:5002/admin/restaurants/{{aid}}/suspend
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+### 28) Suspend A (expect 200, status Suspended)
+POST http://localhost:5002/admin/restaurants/{{aid}}/suspend
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Hygiene complaint #17" }
+
+### 29) Now hidden from the public (expect 404, plus it is gone from the public list)
+GET http://localhost:5002/restaurants/{{aid}}
+
+###
+GET http://localhost:5002/restaurants?search=admin%20test
+
+### 30) The owner can still see it, with the reason (expect 200, status Suspended)
+GET http://localhost:5002/restaurants/{{aid}}
+Authorization: Bearer {{owner1}}
+
+### 31) The owner cannot edit a suspended restaurant (expect 409)
+PATCH http://localhost:5002/restaurants/{{aid}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Trying anyway" }
+
+### 32) Suspend again (expect 200, no change)
+POST http://localhost:5002/admin/restaurants/{{aid}}/suspend
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Hygiene complaint #17" }
+
+### 33) A pending or rejected restaurant cannot be suspended (expect 409 twice)
+POST http://localhost:5002/admin/restaurants/{{bid}}/suspend
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "x" }
+
+### 34) Reactivate A (expect 200, status Approved, reviewNote null)
+POST http://localhost:5002/admin/restaurants/{{aid}}/reactivate
+Authorization: Bearer {{adminToken}}
+
+### 35) Visible again (expect 200)
+GET http://localhost:5002/restaurants/{{aid}}
+
+### 36) Reactivate an approved restaurant (expect 200, no change)
+POST http://localhost:5002/admin/restaurants/{{aid}}/reactivate
+Authorization: Bearer {{adminToken}}
+
+### 37) Reactivate a rejected restaurant (expect 409)
+POST http://localhost:5002/admin/restaurants/{{bid}}/reactivate
+Authorization: Bearer {{adminToken}}
+
+### 38) Reactivate with a note (suspend C first, then reactivate it with a note)
+POST http://localhost:5002/admin/restaurants/{{cid}}/suspend
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Temporary check" }
+
+###
+POST http://localhost:5002/admin/restaurants/{{cid}}/reactivate
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "note": "Check passed" }
+
+### 39) Final view of the review queue (expect the counts to match what you did)
+GET http://localhost:5002/admin/restaurants?search=admin%20test
+Authorization: Bearer {{adminToken}}
