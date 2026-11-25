@@ -2,6 +2,7 @@ package com.wagba.restaurants.restaurant;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /** Event payloads hold strings, booleans and numbers only. */
 public final class RestaurantEventPayloads {
@@ -36,6 +37,15 @@ public final class RestaurantEventPayloads {
         p.put("restaurantId", r.getId().toString());
         p.put("acceptingOrders", r.isAcceptingOrders());
         p.put("status", r.getStatus().name());
+        return p;
+    }
+
+    /** Snapshot plus the review details, so Notifications can write to the owner without calling back. */
+    public static Map<String, Object> reviewed(Restaurant r, RestaurantStatus previous, UUID reviewedBy, String reason) {
+        Map<String, Object> p = snapshot(r);
+        p.put("previousStatus", previous.name());
+        p.put("reviewedBy", reviewedBy.toString());
+        p.put("reason", reason);
         return p;
     }
 }
