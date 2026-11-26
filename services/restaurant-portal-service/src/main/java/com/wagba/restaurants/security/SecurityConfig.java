@@ -42,6 +42,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/restaurants/*").hasRole("RestaurantUser")
                         .requestMatchers(HttpMethod.PUT, "/restaurants/*/working-hours", "/restaurants/*/availability")
                         .hasRole("RestaurantUser")
+                        // menu management: RestaurantUser only. Ownership of the specific restaurant is checked in the service.
+                        .requestMatchers(HttpMethod.POST, "/restaurants/*/categories", "/restaurants/*/items").hasRole("RestaurantUser")
+                        .requestMatchers(HttpMethod.PATCH, "/categories/*", "/items/*").hasRole("RestaurantUser")
+                        .requestMatchers(HttpMethod.DELETE, "/categories/*", "/items/*").hasRole("RestaurantUser")
+                        .requestMatchers(HttpMethod.PUT, "/items/*/availability").hasRole("RestaurantUser")
                         // public browsing (KAN-20)
                         .requestMatchers(HttpMethod.GET, "/restaurants", "/restaurants/*", "/restaurants/*/menu").permitAll()
                         .requestMatchers("/admin/**").hasRole("SuperAdmin")
