@@ -77,4 +77,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setTitle("Concurrent modification");
         return pd;
     }
+
+    @ExceptionHandler(MenuNotFoundException.class)
+    public ProblemDetail handleMenuNotFound(MenuNotFoundException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setTitle("Not found");
+        return pd;
+    }
+
+    @ExceptionHandler(DuplicateNameException.class)
+    public ProblemDetail handleDuplicateName(DuplicateNameException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setTitle("Name already in use");
+        return pd;
+    }
 }
