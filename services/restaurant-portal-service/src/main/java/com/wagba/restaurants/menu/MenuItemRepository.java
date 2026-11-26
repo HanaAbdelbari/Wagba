@@ -12,4 +12,12 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, UUID> {
 
     /** Used by the quote API: loads the requested items, but only those of this restaurant. */
     List<MenuItem> findByIdInAndRestaurantId(Collection<UUID> ids, UUID restaurantId);
+    //المنتج مش متكرر عند الإضافة
+    boolean existsByCategoryIdAndNameIgnoreCaseAndActiveTrue(UUID categoryId, String name);
+
+    //التأكد إن الاسم مش مستخدم في منتج تاني أثناء التعديل
+    boolean existsByCategoryIdAndNameIgnoreCaseAndActiveTrueAndIdNot(UUID categoryId, String name, UUID id);
+
+    //التأكد إن الـ Category فيها منتجات Active
+    boolean existsByCategoryIdAndActiveTrue(UUID categoryId);
 }
