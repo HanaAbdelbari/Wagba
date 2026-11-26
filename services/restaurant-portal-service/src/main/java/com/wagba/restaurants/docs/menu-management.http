@@ -1,0 +1,482 @@
+### ===== SETUP =====
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "admin@wagba.com", "password": "ADMIN_PASSWORD_HERE" }
+
+> {% client.global.set("adminToken", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner1", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "owner2@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("owner2", response.body.accessToken); %}
+
+###
+POST http://localhost:5001/auth/login
+Content-Type: application/json
+
+{ "email": "customer1@wagba.test", "password": "Passw0rd123" }
+
+> {% client.global.set("customer", response.body.accessToken); %}
+
+### R1 belongs to owner1 (it stays Pending for a while: owners can build the menu before approval)
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Menu Test R1", "description": "Menu management tests", "phone": "+201008880001", "address": "1 Menu Street" }
+
+> {% client.global.set("r1", response.body.id); %}
+
+### R2 belongs to owner2
+POST http://localhost:5002/restaurants
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Menu Test R2", "phone": "+201008880002", "address": "2 Menu Street" }
+
+> {% client.global.set("r2", response.body.id); %}
+
+### A category of R2, used for the cross-restaurant tests
+POST http://localhost:5002/restaurants/{{r2}}/categories
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Sushi", "sortOrder": 1 }
+
+> {% client.global.set("r2cat", response.body.id); %}
+
+
+### ===== ACCESS RULES =====
+### 1) No token (expect 401)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Content-Type: application/json
+
+{ "name": "Nope" }
+
+### 2) Customer (expect 403)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{customer}}
+Content-Type: application/json
+
+{ "name": "Nope" }
+
+### 3) SuperAdmin reviews restaurants but does not manage menus (expect 403)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Nope" }
+
+
+### ===== CATEGORIES =====
+### 4) Create (expect 201, sortOrder 1, active true) while the restaurant is still Pending
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Pizza", "sortOrder": 1 }
+
+> {% client.global.set("c1", response.body.id); %}
+
+### 5) Create without sortOrder (expect 201, sortOrder 0)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Drinks" }
+
+> {% client.global.set("c2", response.body.id); %}
+
+### 6) Same name, different letter case (expect 409)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "PIZZA" }
+
+### 7) Blank name (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "   " }
+
+### 8) Negative sortOrder (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Bad order", "sortOrder": -1 }
+
+### 9) Someone else's restaurant (expect 404, not 403)
+POST http://localhost:5002/restaurants/{{r2}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Hijack" }
+
+### 10) Unknown restaurant (expect 404)
+POST http://localhost:5002/restaurants/00000000-0000-0000-0000-000000000000/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Ghost" }
+
+### 11) Rename (expect 200)
+PATCH http://localhost:5002/categories/{{c1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Pizzas", "sortOrder": 5 }
+
+### 12) Rename to the name of another active category (expect 409)
+PATCH http://localhost:5002/categories/{{c1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Drinks" }
+
+### 13) Another owner cannot rename it (expect 404 "Category not found")
+PATCH http://localhost:5002/categories/{{c1}}
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "name": "Hijacked" }
+
+### 14) A category that does not exist gets the SAME 404 and message
+PATCH http://localhost:5002/categories/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Ghost" }
+
+### 15) Same values again (expect 200, and no new audit row)
+PATCH http://localhost:5002/categories/{{c1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Pizzas", "sortOrder": 5 }
+
+### 16) Not a UUID (expect 400)
+PATCH http://localhost:5002/categories/abc
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "x" }
+
+
+### ===== ITEMS =====
+### 17) Create (expect 201, currency EGP, available true)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "Margherita", "description": "Tomato and mozzarella",
+  "priceMinor": 15000, "imageUrl": "https://example.com/margherita.jpg", "sortOrder": 1 }
+
+> {% client.global.set("i1", response.body.id); %}
+
+### 18) Create a drink that starts as unavailable
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c2}}", "name": "Cola", "priceMinor": 3000, "available": false }
+
+> {% client.global.set("i2", response.body.id); %}
+
+### 19) Negative price (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "Bad price", "priceMinor": -1 }
+
+### 20) Missing price (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "No price" }
+
+### 21) Absurd price (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "Gold pizza", "priceMinor": 999999999999 }
+
+### 22) Bad image URL (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "Bad image", "priceMinor": 100, "imageUrl": "javascript:alert(1)" }
+
+### 23) Missing categoryId (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Orphan", "priceMinor": 100 }
+
+### 24) A category of ANOTHER restaurant (expect 400 "Category not found in this restaurant")
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{r2cat}}", "name": "Cross", "priceMinor": 100 }
+
+### 25) Unknown category (expect 400)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "00000000-0000-0000-0000-000000000000", "name": "Ghost", "priceMinor": 100 }
+
+### 26) Duplicate name in the same category, different case (expect 409)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "margherita", "priceMinor": 100 }
+
+### 27) The same name in a DIFFERENT category is fine (expect 201)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c2}}", "name": "Margherita", "priceMinor": 100 }
+
+> {% client.global.set("i3", response.body.id); %}
+
+### 28) Another owner cannot add items to R1 (expect 404)
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "Hijack", "priceMinor": 100 }
+
+
+### ===== UPDATE ITEMS =====
+### 29) Change the price (expect 200, priceMinor 18000, version goes up)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "priceMinor": 18000 }
+
+### 30) Same price again (expect 200, no new audit row, no new event)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "priceMinor": 18000 }
+
+### 31) Rename and clear the description with an empty string (expect description null)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Margherita Special", "description": "" }
+
+### 32) Move the item to another category (expect 200, categoryId = c2)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c2}}", "name": "Margherita Large" }
+
+### 33) Rename into the name of another item in the same category (expect 409)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Cola" }
+
+### 34) Move into a category of another restaurant (expect 400)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{r2cat}}" }
+
+### 35) Another owner (expect 404 "Item not found")
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "priceMinor": 1 }
+
+### 36) Negative price (expect 400)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "priceMinor": -5 }
+
+### 37) Currency or availability cannot be set through PATCH (expect 200, nothing changes)
+PATCH http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "currency": "USD", "available": false, "active": false, "restaurantId": "00000000-0000-0000-0000-000000000000" }
+
+
+### ===== AVAILABILITY =====
+### 38) Sold out (expect 200, available false)
+PUT http://localhost:5002/items/{{i1}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "available": false }
+
+### 39) Same value again (expect 200 and NO new event)
+PUT http://localhost:5002/items/{{i1}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "available": false }
+
+### 40) Missing field (expect 400)
+PUT http://localhost:5002/items/{{i1}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{}
+
+### 41) Another owner (expect 404)
+PUT http://localhost:5002/items/{{i1}}/availability
+Authorization: Bearer {{owner2}}
+Content-Type: application/json
+
+{ "available": true }
+
+### 42) Available again (expect 200)
+PUT http://localhost:5002/items/{{i1}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "available": true }
+
+
+### ===== THE PUBLIC MENU =====
+### 43) Approve R1 so the public can see it
+POST http://localhost:5002/admin/restaurants/{{r1}}/approve
+Authorization: Bearer {{adminToken}}
+
+### 44) Public menu: categories "Pizzas" (empty: hidden for the public) and "Drinks" with
+###     "Margherita Large", "Cola" (available false) and "Margherita"
+GET http://localhost:5002/restaurants/{{r1}}/menu
+
+### 45) The owner also sees the empty "Pizzas" category
+GET http://localhost:5002/restaurants/{{r1}}/menu
+Authorization: Bearer {{owner1}}
+
+
+### ===== ARCHIVE =====
+### 46) Archive a category that still has items (expect 409)
+PUT http://localhost:5002/items/{{i1}}/availability
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "available": true }
+
+###
+DELETE http://localhost:5002/categories/{{c2}}
+Authorization: Bearer {{owner1}}
+
+### 47) Archive an item (expect 204)
+DELETE http://localhost:5002/items/{{i3}}
+Authorization: Bearer {{owner1}}
+
+### 48) Archive it again (expect 204, idempotent)
+DELETE http://localhost:5002/items/{{i3}}
+Authorization: Bearer {{owner1}}
+
+### 49) An archived item cannot be edited (expect 404)
+PATCH http://localhost:5002/items/{{i3}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Zombie" }
+
+### 50) And it is gone from the public menu
+GET http://localhost:5002/restaurants/{{r1}}/menu
+
+### 51) Another owner cannot archive it (expect 404)
+DELETE http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner2}}
+
+### 52) Archive the remaining items, then the category (expect 204 each)
+DELETE http://localhost:5002/items/{{i1}}
+Authorization: Bearer {{owner1}}
+
+###
+DELETE http://localhost:5002/items/{{i2}}
+Authorization: Bearer {{owner1}}
+
+###
+DELETE http://localhost:5002/categories/{{c2}}
+Authorization: Bearer {{owner1}}
+
+### 53) Archive the category again (expect 204)
+DELETE http://localhost:5002/categories/{{c2}}
+Authorization: Bearer {{owner1}}
+
+### 54) An archived category cannot be edited (expect 404)
+PATCH http://localhost:5002/categories/{{c2}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Zombie" }
+
+### 55) The name of an archived category can be reused (expect 201)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "Drinks" }
+
+
+# >>> Now run section A of docs/kan22-test-data.sql (suspends R1) <<<
+
+### ===== SUSPENDED RESTAURANT =====
+### 56) Every write is blocked (expect 409 for all four)
+POST http://localhost:5002/restaurants/{{r1}}/categories
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "While suspended" }
+
+###
+PATCH http://localhost:5002/categories/{{c1}}
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "name": "While suspended" }
+
+###
+DELETE http://localhost:5002/categories/{{c1}}
+Authorization: Bearer {{owner1}}
+
+###
+POST http://localhost:5002/restaurants/{{r1}}/items
+Authorization: Bearer {{owner1}}
+Content-Type: application/json
+
+{ "categoryId": "{{c1}}", "name": "While suspended", "priceMinor": 100 }
+
+# >>> Run section B (restores R1) <<<
