@@ -41,6 +41,8 @@ CREATE INDEX ix_restaurants_status ON restaurants (status);
 -- day_of_week follows java.time.DayOfWeek: 1 = Monday ... 7 = Sunday.
 -- A restaurant may have several periods per day. No row for a day means closed that day.
 -- Overlapping periods are rejected by the application, not by this table.
+--ليه عملنا جدول منفصل للمواعيد بدل ما نحطها في جدول restaurants؟
+--المطعم ممكن يكون عنده مواعيد مختلفة لكل يوم، وممكن يكون عنده أكتر من فترة في نفس اليوم.
 CREATE TABLE restaurant_working_hours (
                                           id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                                           restaurant_id   UUID     NOT NULL REFERENCES restaurants (id),
