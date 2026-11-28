@@ -9,4 +9,9 @@ import java.util.UUID;
 public interface MenuOptionRepository extends JpaRepository<MenuOption, UUID> {
 
     List<MenuOption> findByGroupIdInAndActiveTrueOrderBySortOrderAscNameAsc(Collection<UUID> groupIds);
+    long countByGroupIdAndActiveTrue(UUID groupId);
+
+    boolean existsByGroupIdAndNameIgnoreCaseAndActiveTrue(UUID groupId, String name);
+
+    boolean existsByGroupIdAndNameIgnoreCaseAndActiveTrueAndIdNot(UUID groupId, String name, UUID id);
 }
